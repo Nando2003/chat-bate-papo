@@ -1,0 +1,8 @@
+import vine from '@vinejs/vine'
+
+export const loginValidator = vine.compile(
+  vine.object({
+    registration: vine.string().maxLength(255),
+    password: vine.string().minLength(6).maxLength(180),
+  })
+)
