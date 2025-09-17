@@ -3,19 +3,15 @@
     <div class="max-w-screen-xl mx-auto px-4 py-4">
       <div class="flex items-center justify-between">
         <div>
-          <Link href="/" class="text-2xl font-bold text-gray-800">
-            Bate-papo
-          </Link>
+          <Link href="/" class="text-2xl font-bold text-gray-800"> Bate-papo </Link>
         </div>
 
         <div class="flex items-center space-x-7">
-          <span class="text-gray-600">
-            Hi, {{ displayName }}
-          </span>
+          <span class="text-gray-600"> Hi, {{ displayName }} </span>
 
-          <Link 
-            href="/logout" 
-            method="post" 
+          <Link
+            href="/logout"
+            method="post"
             class="text-gray-600 hover:text-black font-medium transition-colors duration-200 ease-in-out"
           >
             Logout
@@ -42,5 +38,4 @@ const displayName = computed(() => {
   if (!user.value) return ''
   return user.value.fullName?.trim() || user.value.username || ''
 })
-
 </script>

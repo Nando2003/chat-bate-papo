@@ -21,3 +21,13 @@ router
   .use(middleware.guest())
 
 router.post('/logout', '#controllers/auth_controller.logout').as('logout').use(middleware.auth())
+
+router
+  .get('/messages', '#controllers/messages_controller.index')
+  .as('messages.index')
+  .use(middleware.auth())
+
+router
+  .get('/messages/load-more', '#controllers/messages_controller.loadMore')
+  .as('messages.loadMore')
+  .use(middleware.auth())

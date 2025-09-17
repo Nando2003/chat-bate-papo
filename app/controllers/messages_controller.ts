@@ -31,13 +31,17 @@ export default class MessagesController {
   }
 
   async loadMore(ctx: HttpContext) {
-    const lastMessageId = ctx.request.input('lastMessageId')
+    const lastMessageCreatedAt = ctx.request.input('lastMessageId')
     const limit = ctx.request.input('limit', 20)
 
     const query = Message.query().preload('sender').orderBy('created_at', 'desc').limit(limit)
 
-    if (lastMessageId) {
-      query.where('id', '<', lastMessageId)
+    if (lastMessageCreatedAt) {
+      const lastDateTime = DateTime.fromISO(lastMessageCreatedAt)
+
+      if (lastDateTime.isValid) {
+        query.where('createdAt', '<', lastDateTime.toJSDate())
+      }
     }
 
     const messages = await query

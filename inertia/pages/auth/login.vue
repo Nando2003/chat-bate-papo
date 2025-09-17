@@ -61,19 +61,16 @@
               Don't have an account? Sign up
             </a>
           </div>
-
         </div>
       </form>
-      
     </div>
   </div>
-
 </template>
 
 <script setup lang="ts">
-import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3'
 import Toast from '../../components/toast.vue'
-import { computed } from 'vue';
+import { computed } from 'vue'
 
 const page = usePage()
 
