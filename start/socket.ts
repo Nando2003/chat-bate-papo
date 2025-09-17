@@ -18,6 +18,8 @@ app.ready(async () => {
 
   io.on('connection', (socket) => {
     const userId = socket.data.userId as number
+    if (!userId) return
+  
     const chatService = new ChatService(userId)
 
     socket.on('joinRoom', async (room: string) => {
