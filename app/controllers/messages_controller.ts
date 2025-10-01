@@ -13,9 +13,17 @@ interface MessageResponse {
 
 export default class MessagesController {
   async index(ctx: HttpContext) {
-    const messages = await Message.query().preload('sender').orderBy('createdAt', 'desc').limit(10)
+    const page = 1
+    const limit = ctx.request.input('limit', 10)
 
-    const response: MessageResponse[] = messages.map((message) => ({
+    const paginatedResult = await Message.query()
+      .preload('sender')
+      .orderBy('createdAt', 'desc')
+      .paginate(page, limit)
+
+    const paginatedMessages = paginatedResult.all()
+
+    const response: MessageResponse[] = paginatedMessages.map((message: Message) => ({
       content: message.content,
       createdAt: message.createdAt,
       sender: {
@@ -26,15 +34,19 @@ export default class MessagesController {
 
     return ctx.response.ok({
       data: response.reverse(),
-      hasMore: messages.length === 10,
+      hasMore: paginatedResult.total > limit,
     })
   }
 
   async loadMore(ctx: HttpContext) {
     const lastMessageCreatedAt = ctx.request.input('lastMessageId')
+    const page = 1
     const limit = ctx.request.input('limit', 10)
 
-    const query = Message.query().preload('sender').orderBy('created_at', 'desc').limit(limit)
+    const query = Message.query()
+      .preload('sender')
+      .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc')
 
     if (lastMessageCreatedAt) {
       const lastDateTime = DateTime.fromISO(lastMessageCreatedAt)
@@ -44,9 +56,11 @@ export default class MessagesController {
       }
     }
 
-    const messages = await query
+    const paginatedQuery = query.paginate(page, limit)
+    const paginatedResult = await paginatedQuery
+    const paginatedMessages = paginatedResult.all()
 
-    const response: MessageResponse[] = messages.map((message) => ({
+    const response: MessageResponse[] = paginatedMessages.map((message: Message) => ({
       content: message.content,
       createdAt: message.createdAt,
       sender: {
@@ -57,7 +71,7 @@ export default class MessagesController {
 
     return ctx.response.ok({
       data: response,
-      hasMore: messages.length === limit,
+      hasMore: paginatedResult.total > limit,
     })
   }
 }

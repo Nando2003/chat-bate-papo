@@ -84,19 +84,12 @@
 <script setup lang="ts">
 import { Head, usePage } from '@inertiajs/vue3'
 import DefaultLayout from '../../layouts/default_layout.vue'
-import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
-import { io, Socket } from 'socket.io-client'
-
-interface User {
-  fullName: string
-  username: string
-}
-
-interface Message {
-  content: string
-  createdAt: string
-  sender: User
-}
+import { computed, nextTick, onMounted, onUnmounted, type Ref, ref } from 'vue'
+import type { User } from '../../types/user'
+import type { Message } from '../../types/message'
+import { formatTime } from '../../utils/format_utils'
+import { useMessages } from '../../composables/use_messages'
+import { useChat } from '../../composables/use_chat'
 
 const page = usePage()
 const user = computed(() => page.props.user as User)
@@ -109,71 +102,62 @@ const isLoading = ref(false)
 const isLoadingMore = ref(false)
 const hasMore = ref(true)
 
-let socket: Socket | null = null
+const { fetchMessages, loadMoreMessages } = useMessages({ messages, isLoading, isLoadingMore, hasMore, messagesContainer })
+const { joinChat, disconnectChat, sendMessage } = useChat('main-room', { messages, newMessage })
 
-const isMyMessage = (message: Message) => {
-  return message.sender.username === user.value?.username
-}
+const smoothScrollTo = (container: HTMLElement, target: number, duration = 180) => {
+  const start = container.scrollTop
+  const change = target - start
+  const startTime = performance.now()
+  const easeInOutQuad = (t: number) => (t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t)
 
-const fetchMessages = async () => {
-  if (isLoading.value) return
-
-  isLoading.value = true
-
-  try {
-    const response = await fetch('/messages')
-
-    if (response.ok) {
-      const data = await response.json()
-      messages.value = data.data
-      hasMore.value = data.hasMore
-
-      await nextTick()
-      scrollToBottom()
-    }
-  } finally {
-    isLoading.value = false
+  function animate(now: number) {
+    const elapsed = now - startTime
+    const t = Math.min(1, elapsed / duration)
+    container.scrollTop = start + change * easeInOutQuad(t)
+    if (t < 1) requestAnimationFrame(animate)
   }
+  requestAnimationFrame(animate)
 }
 
-const loadMoreMessages = async () => {
-  if (isLoadingMore.value || !hasMore.value || messages.value.length === 0) return
-
-  console.log('Loading more messages...')
-  isLoadingMore.value = true
-  const currentScrollHeight = messagesContainer.value?.scrollHeight || 0
-
-  // Aguarda 1.5 segundos para mostrar o loading
-  await new Promise(resolve => setTimeout(resolve, 1500))
-
-  try {
-    const firstMessage = messages.value[0]
-    const params = new URLSearchParams({
-      lastMessageId: firstMessage.createdAt,
-      limit: '10',
+const scrollToBottom = () => {
+  const el = messagesContainer.value
+  if (!el) return
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      smoothScrollTo(el, el.scrollHeight, 180)
     })
-    const response = await fetch(`/messages/load-more?${params}`)
+  })
+}
 
-    if (response.ok) {
-      const { data: olderMessages, hasMore: newHasMore } = await response.json() as { data: Message[]; hasMore: boolean }
+const isUserAtBottom = (thresholdPercentage = 80) => {
+  const el = messagesContainer.value
+  if (!el) return true
 
-      olderMessages.sort((a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      )
+  const scrollPercentage = (el.scrollTop + el.clientHeight) / el.scrollHeight
+  const isAtBottom = scrollPercentage >= (thresholdPercentage / 100)
+  return isAtBottom
+}
 
-      messages.value = [...olderMessages, ...messages.value]
-      hasMore.value = newHasMore
-
-      await nextTick()
-
-      if (messagesContainer.value) {
-        const newScrollHeight = messagesContainer.value.scrollHeight
-        messagesContainer.value.scrollTop = newScrollHeight - currentScrollHeight
-      }
-    }
-  } finally {
-    isLoadingMore.value = false
+const scrollToBottomIfNeeded = () => {
+  const isAtBottom = isUserAtBottom()
+  if (isAtBottom) {
+    scrollToBottom()
   }
+}
+
+const scrollToBottomAuto = () => {
+  const el = messagesContainer.value
+  if (!el) return
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight
+    })
+  })
+}
+
+const isMyMessage = (message: Message): boolean => {
+  return message.sender.username === user.value?.username
 }
 
 const handleScroll = () => {
@@ -186,77 +170,9 @@ const handleScroll = () => {
   }
 }
 
-const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
-}
-
-const formatTime = (dateString: string) => {
-  const messageDate = new Date(dateString)
-  const now = new Date()
-
-  // Verifica se a mensagem é de hoje
-  const isToday = messageDate.toDateString() === now.toDateString()
-
-  // Verifica se a mensagem é de ontem
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const isYesterday = messageDate.toDateString() === yesterday.toDateString()
-
-  if (isToday) {
-    return messageDate.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } else if (isYesterday) {
-    return `Yesterday ${messageDate.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })}`
-  } else {
-    return messageDate.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-}
-
-const joinChat = async () => {
-  socket = io('/')
-
-  socket.on('connect', () => {
-    if (!socket) return
-    socket.emit('joinRoom', 'main-room')
-  })
-
-  socket.on('newMessage', (msg: Message) => {
-    messages.value.push(msg)
-  })
-}
-
-const sendMessage = async () => {
-  if (!socket || !newMessage.value.trim()) return
-  socket.emit('sendMessage', {
-    content: newMessage.value,
-    room: 'main-room',
-  })
-  newMessage.value = ''
-}
-
-const disconnectChat = () => {
-  if (!socket) return
-  socket.emit('leaveRoom', 'main-room')
-  socket.disconnect()
-  socket = null
-}
-
-onMounted(() => {
-  fetchMessages()
-  joinChat()
+onMounted(async () => {
+  fetchMessages(scrollToBottomAuto)
+  joinChat(scrollToBottomIfNeeded)
 })
 
 onUnmounted(() => {
