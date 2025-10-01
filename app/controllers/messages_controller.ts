@@ -13,7 +13,7 @@ interface MessageResponse {
 
 export default class MessagesController {
   async index(ctx: HttpContext) {
-    const messages = await Message.query().preload('sender').orderBy('createdAt', 'desc').limit(50)
+    const messages = await Message.query().preload('sender').orderBy('createdAt', 'desc').limit(10)
 
     const response: MessageResponse[] = messages.map((message) => ({
       content: message.content,
@@ -26,13 +26,13 @@ export default class MessagesController {
 
     return ctx.response.ok({
       data: response.reverse(),
-      hasMore: messages.length === 50,
+      hasMore: messages.length === 10,
     })
   }
 
   async loadMore(ctx: HttpContext) {
     const lastMessageCreatedAt = ctx.request.input('lastMessageId')
-    const limit = ctx.request.input('limit', 20)
+    const limit = ctx.request.input('limit', 10)
 
     const query = Message.query().preload('sender').orderBy('created_at', 'desc').limit(limit)
 

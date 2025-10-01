@@ -138,26 +138,31 @@ const fetchMessages = async () => {
 
 const loadMoreMessages = async () => {
   if (isLoadingMore.value || !hasMore.value || messages.value.length === 0) return
-  
+
   console.log('Loading more messages...')
   isLoadingMore.value = true
   const currentScrollHeight = messagesContainer.value?.scrollHeight || 0
-  
+
+  // Aguarda 1.5 segundos para mostrar o loading
+  await new Promise(resolve => setTimeout(resolve, 1500))
+
   try {
     const firstMessage = messages.value[0]
-    
     const params = new URLSearchParams({
       lastMessageId: firstMessage.createdAt,
-      limit: '20',
+      limit: '10',
     })
-
     const response = await fetch(`/messages/load-more?${params}`)
 
     if (response.ok) {
-      const data = await response.json()
-      const olderMessages = data.data
-      messages.value.unshift(...olderMessages)
-      hasMore.value = data.hasMore
+      const { data: olderMessages, hasMore: newHasMore } = await response.json() as { data: Message[]; hasMore: boolean }
+
+      olderMessages.sort((a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )
+
+      messages.value = [...olderMessages, ...messages.value]
+      hasMore.value = newHasMore
 
       await nextTick()
 
@@ -166,7 +171,6 @@ const loadMoreMessages = async () => {
         messagesContainer.value.scrollTop = newScrollHeight - currentScrollHeight
       }
     }
-
   } finally {
     isLoadingMore.value = false
   }
@@ -253,7 +257,6 @@ const disconnectChat = () => {
 onMounted(() => {
   fetchMessages()
   joinChat()
-  sendMessage()
 })
 
 onUnmounted(() => {
